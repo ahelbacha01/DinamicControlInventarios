@@ -1,24 +1,25 @@
 <script setup>
 import { ref } from 'vue';
-
-const emit = defineEmits(['guardado', 'cancelar']);
+const emit = defineEmits(['guardado', 'cancelar', 'cargarMaestro']);
 const props = defineProps(['cargando']);
-
 const formulario = ref({
   nombre: 'Inventario Tienda',
   sucursal: '',
   cliente: 'Carre', // Valor por defecto
   encargado: '',
-  cantidadAuditores: '4',
+  cantidadAuditores: 4,
   iniciodeposito: '20:30',
   findeposito: '22:00',  
   iniciosalon:'',
   finsalon:'', nombrearchivo: ''
 });
-
 const enviarFormulario = () => {
   if (!formulario.value.nombre || !formulario.value.sucursal) return;
   emit('guardado', { ...formulario.value });
+};
+const cargarMaestroDirecto = () => {
+  //if (!formulario.value.nombre || !formulario.value.sucursal) return;
+  emit('cargarMaestro', { ...formulario.value });
 };
 </script>
 
@@ -60,7 +61,7 @@ const enviarFormulario = () => {
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cantidad Auditores</label>
-          <input v-model="formulario.cantidadAuditores" type="text" placeholder="Ej: 3" 
+          <input v-model.number="formulario.cantidadAuditores" type="number" min="1" placeholder="Ej: 3" 
             class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
         </div>
         <div>
@@ -85,14 +86,20 @@ const enviarFormulario = () => {
         </div>
       </div>
 
-      <div class="flex gap-3 pt-4">
+      <div class="flex gap-3 pt-4 flex-wrap">
         <button type="button" @click="$emit('cancelar')" 
-          class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all">
+          class="flex-1 min-w-[160px] bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all">
           Cancelar
         </button>
+
         <button type="submit" :disabled="cargando"
-          class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
+          class="flex-1 min-w-[160px] bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
           {{ cargando ? 'Creando Base...' : 'Ejecutar Inicialización' }}
+        </button>
+
+        <button type="button" @click="cargarMaestroDirecto" :disabled="cargando"
+          class="flex-1 min-w-[160px] bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50">
+          {{ cargando ? '...' : 'Cargar Maestro' }}
         </button>
       </div>
     </form>

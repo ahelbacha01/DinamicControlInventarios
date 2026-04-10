@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pyodbc
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 app = FastAPI()
 
@@ -285,6 +285,11 @@ class NuevoInventario(BaseModel):
     fin_deposito: str
     inicio_salon: str
     fin_salon: str
+    nombre_archivo: Optional[str] = ''
+    nombre_sto: Optional[str] = ''
+    cantidad_maestros: Optional[int] = 0
+    cantidad_sto: Optional[int] = 0
+
 
 
 
@@ -393,10 +398,10 @@ async def procesar_archivo_maestro(db_name: str, inventario_id: int, file: Uploa
         cursor = conn.cursor()
         # 2. Leer y parsear el archivo
         content = await file.read()
+        sucursalid = file.filename[0:4] if file.filename and len(file.filename) >= 4 else '0000'
         # Intentar decodificar con latin-1 si utf-8 falla (común en archivos .out viejos)
         try:
             lines = content.decode('utf-8').splitlines()
-            sucursalid = file.filename[0:4]
         except UnicodeDecodeError:
             lines = content.decode('latin-1').splitlines()
         productos_para_insertar = []
@@ -452,7 +457,8 @@ async def procesar_archivo_maestro(db_name: str, inventario_id: int, file: Uploa
         conn.commit()
         return {
             "status": "success", 
-            "message": f"Proceso finalizado con éxito. {len(productos_unicos)} productos únicos cargados."
+            "message": f"Proceso finalizado con éxito. {len(productos_unicos)} productos únicos cargados.",
+            "registrosProcesados": len(productos_unicos)
         }
 
     except Exception as e:
@@ -471,9 +477,9 @@ async def procesar_archivo_sto(db_name: str, inventario_id: int, file: UploadFil
     try:
         cursor = conn.cursor()
         content = await file.read()
+        sucursalid = file.filename[0:4] if file.filename and len(file.filename) >= 4 else '627'
         try:
             lines = content.decode('utf-8').splitlines()
-            sucursalid = file.filename[0:3]  # STO usa 3 caracteres de sucursal
         except UnicodeDecodeError:
             lines = content.decode('latin-1').splitlines()
 
@@ -542,6 +548,7 @@ async def procesar_archivo_sto(db_name: str, inventario_id: int, file: UploadFil
         return {
             "status": "success",
             "message": f"Proceso STO finalizado. {len(registros_unicos)} registros únicos cargados.",
+            "registrosProcesados": len(registros_unicos),
             "comparacion": {
                 "cant_sto": llCantSTO,
                 "cant_maestro": llCantMaestro,

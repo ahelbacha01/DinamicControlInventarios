@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 
 const emit = defineEmits(['archivo-procesado', 'cancelar'])
-// Asegúrate de que props.baseDatos y props.inventarioId reciban los valores correctos (ej: 'inv_950' y '950')
-const props = defineProps(['cargando', 'baseDatos', 'inventarioId'])
+// Añadimos un nuevo prop: tipoArchivo, que puede ser 'maestro' o 'sto'
+const props = defineProps(['cargando', 'baseDatos', 'inventarioId', 'tipoArchivo'])
 
 const archivoSeleccionado = ref(null)
 const cargandoSubida = ref(false)
@@ -21,31 +21,37 @@ const procesarArchivo = async () => {
   cargandoSubida.value = true
   try {
     const formData = new FormData()
-    // El nombre 'file' debe coincidir exactamente con el nombre del parámetro en FastAPI: (file: UploadFile = File(...))
     formData.append('file', archivoSeleccionado.value)
 
-    // CORRECCIÓN DE URL: Asegúrate de incluir el host y puerto si el backend no está en el mismo servidor de archivos estáticos
-    // También añadimos el header 'accept' para seguir el estándar del curl
-    const url = `http://localhost:8000/api/inventarios/procesar-archivo-maestro/${props.baseDatos}/${props.inventarioId}`
+    // Construimos la URL dinámicamente según el tipo de archivo
+    const endpoint = props.tipoArchivo === 'sto'
+      ? 'procesar-archivo-sto'
+      : 'procesar-archivo-maestro'
+
+    const url = `http://localhost:8000/api/inventarios/${endpoint}/${props.baseDatos}/${props.inventarioId}`
     
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
       headers: {
         'accept': 'application/json'
-        // IMPORTANTE: NO añadir Content-Type aquí, el navegador lo hará automáticamente con el boundary correcto
       }
     })
 
     const resultado = await response.json()
 
     if (!response.ok) {
-      // Intentamos captar el mensaje de error que devuelve FastAPI (detail)
       throw new Error(resultado.detail || 'Error al procesar el archivo')
     }
 
     alert(resultado.message || 'Archivo procesado correctamente')
-    emit('archivo-procesado')
+    emit('archivo-procesado', {
+      tipoArchivo: props.tipoArchivo || 'maestro',
+      nombreArchivo: archivoSeleccionado.value?.name || '',
+      registrosProcesados: resultado.registrosProcesados || 0,
+      comparacion: resultado.comparacion || null,
+      message: resultado.message || ''
+    })
   } catch (error) {
     console.error('Error en la subida:', error)
     alert('Error: ' + error.message)
@@ -58,16 +64,19 @@ const procesarArchivo = async () => {
 <template>
   <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-sm border p-8">
     <div class="mb-6">
-      <h3 class="text-xl font-bold text-slate-800">Cargar Archivo Maestro</h3>
+      <h3 class="text-xl font-bold text-slate-800">
+        <!-- Cambiamos el título según el tipo de archivo -->
+        Cargar Archivo {{ props.tipoArchivo === 'sto' ? 'STO' : 'Maestro' }}
+      </h3>
       <p class="text-sm text-slate-500">
-        Sube el archivo maestro (.out) para inicializar los productos del inventario {{ inventarioId }} en la base {{ baseDatos }}
+        Sube el archivo {{ props.tipoArchivo }} (.out) para inicializar los productos del inventario {{ inventarioId }} en la base {{ baseDatos }}
       </p>
     </div>
 
     <div class="space-y-5">
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">
-          Archivo Maestro (.out)
+          Archivo {{ props.tipoArchivo }} (.out)
         </label>
         <input
           type="file"
@@ -100,6 +109,3 @@ const procesarArchivo = async () => {
     </div>
   </div>
 </template>
-
-
-

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dinamic-control-inventarios
+    ports:
+      - "8000:8000"
+    environment:
+      # IMPORTANT: Update these with your actual SQL Server details
+      - SQL_SERVER=DESKTOP-I70RB61\SQLEXPRESS
+      - SQL_DATABASE=inv_ad
+      - SQL_DRIVER=ODBC Driver 17 for SQL Server
+    volumes:
+      # Enable hot-reload for development (uncomment for dev)
+      - ./main.py:/app/main.py:ro
+      - ./src:/app/frontend/src:ro
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

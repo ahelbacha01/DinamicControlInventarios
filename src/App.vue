@@ -37,11 +37,23 @@ const {
 const sidebarAbierto = ref(true)
 const cargandoCreacion = ref(false)
 const inventarioCreado = ref(null)
+const ultimoArchivoMaestro = ref({ nombre: '', registros: 0 })
+const ultimoArchivoSto = ref({ nombre: '', registros: 0 })
 
 // --- MÉTODOS DE NAVEGACIÓN ---
 
 const irANuevoInventario = () => {
   vistaActual.value = 'nuevo-inventario'
+}
+
+const irACargarSto = () => {
+  vistaActual.value = 'cargar-sto'
+}
+
+const irACargarMaestro = () => {
+  if (!inventarioSeleccionado.value) return
+  inventarioCreado.value = null
+  vistaActual.value = 'subir-archivo'
 }
 
 const irADashboard = async () => {
@@ -103,7 +115,21 @@ const seleccionarReporte = async (id) => {
   await cargarDatosReporte(id)
 }
 
-const handleArchivoProcesado = async () => {
+const handleArchivoProcesado = async (payload) => {
+  if (payload?.tipoArchivo === 'sto') {
+    ultimoArchivoSto.value = {
+      nombre: payload.nombreArchivo || '',
+      registros: payload.registrosProcesados || 0
+    }
+    await irADashboard()
+    return
+  }
+
+  ultimoArchivoMaestro.value = {
+    nombre: payload?.nombreArchivo || '',
+    registros: payload?.registrosProcesados || 0
+  }
+
   await actualizarInventarioSeleccionado()
   inventarioCreado.value = null
   await irADashboard()
@@ -180,6 +206,7 @@ onMounted(async () => {
             <template v-if="vistaActual === 'dashboard'">Dashboard de Inventario</template>
             <template v-else-if="vistaActual === 'nuevo-inventario'">Inicializar Proceso</template>
             <template v-else-if="vistaActual === 'subir-archivo'">Cargar Archivo Maestro</template>
+            <template v-else-if="vistaActual === 'cargar-sto'">Cargar Archivo STO</template>
             <template v-else-if="vistaActual === 'reportes'">Reporte: {{ opcionesReporte.find(r => r.id === reporteSeleccionadoId)?.nombre }}</template>
           </h2>
         </div>
@@ -221,11 +248,40 @@ onMounted(async () => {
               <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Base de Datos</p>
               <p class="text-xs font-bold text-slate-800">{{ resumenInventario?.base_datos || '---' }}</p>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-slate-800">
-              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Archivo</p>
-              <p class="text-xs font-bold text-slate-800">{{ resumenInventario?.archivo || '---' }}</p>
-            </div>
+
           </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+
+            <button type="button" @click="irANuevoInventario" class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Último Archivo STO</p>
+                  <p class="text-sm font-semibold text-slate-800 truncate">{{ ultimoArchivoMaestro.nombre || 'Sin archivo Maestro cargado' }}</p>
+                  <p class="text-xs text-slate-500 mt-1">Registros procesados: {{ ultimoArchivoMaestro.registros }}</p>
+                </div>
+                <span class="text-[12px] font-bold text-blue-600 uppercase">Abrir</span>
+              </div>
+            </button>
+
+
+
+
+
+
+            <button type="button" @click="irACargarSto" class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Último Archivo STO</p>
+                  <p class="text-sm font-semibold text-slate-800 truncate">{{ ultimoArchivoSto.nombre || 'Sin archivo STO cargado' }}</p>
+                  <p class="text-xs text-slate-500 mt-1">Registros procesados: {{ ultimoArchivoSto.registros }}</p>
+                </div>
+                <span class="text-[12px] font-bold text-blue-600 uppercase">Abrir</span>
+              </div>
+            </button>
+          </div>
+
           <!-- Selector de Inventario Activo -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
             <div class="flex flex-wrap items-center gap-3">
@@ -265,6 +321,7 @@ onMounted(async () => {
           <FormularioNuevoInventario 
             :cargando="cargandoCreacion"
             @guardado="handleGuardarNuevoInventario" 
+            @cargarMaestro="irACargarMaestro"
             @cancelar="irADashboard" 
           />
         </section>
@@ -273,10 +330,23 @@ onMounted(async () => {
         <section v-if="vistaActual === 'subir-archivo'" class="max-w-3xl mx-auto">
           <FormularioArchivoMaestro
             :cargando="false"
-            :base-datos="inventarioCreado?.base_datos"
-            :inventario-id="inventarioCreado?.inventario_id"
+            :base-datos="inventarioCreado?.base_datos || inventarioSeleccionado?.in_d_dbname"
+            :inventario-id="inventarioCreado?.inventario_id || inventarioSeleccionado?.in_n_id"
+            tipo-archivo="maestro"
             @archivo-procesado="handleArchivoProcesado"
             @cancelar="handleOmitirArchivo"
+          />
+        </section>
+
+        <!-- SECCIÓN: CARGAR STO -->
+        <section v-if="vistaActual === 'cargar-sto'" class="max-w-3xl mx-auto">
+          <FormularioArchivoMaestro
+            :cargando="false"
+            :base-datos="inventarioSeleccionado?.in_d_dbname"
+            :inventario-id="inventarioSeleccionado?.in_n_id"
+            tipo-archivo="sto"
+            @archivo-procesado="handleArchivoProcesado"
+            @cancelar="irADashboard"
           />
         </section>
 

@@ -91,19 +91,26 @@ export function useInventario() {
 
   const crearInventario = async (datos) => {
   try {
-    const res = await axios.post('http://localhost:8000/api/inventarios/crear', {
+    const payload = {
       nombre_inventario: datos.nombre,
-      sucursal: datos.sucursal,
-      cliente: datos.cliente,
-      encargado: datos.encargado,
-      cantidad_auditores: datos.cantidadAuditores,
-      inicio_deposito: datos.iniciodeposito,
-      fin_deposito: datos.findeposito,
-      inicio_salon: datos.iniciosalon,
-      fin_salon: datos.finsalon
+      sucursal: String(datos.sucursal || ''),
+      cliente: String(datos.cliente || ''),
+      encargado: String(datos.encargado || ''),
+      cantidad_auditores: Number(datos.cantidadAuditores) || 0,
+      inicio_deposito: String(datos.iniciodeposito || ''),
+      fin_deposito: String(datos.findeposito || ''),
+      inicio_salon: String(datos.iniciosalon || ''),
+      fin_salon: String(datos.finsalon || '')
+    };
+
+    const res = await axios.post('http://localhost:8000/api/inventarios/crear', payload, {
+      headers: { 'Content-Type': 'application/json' }
     });
     return res.data;
   } catch (err) {
+    if (err.response) {
+      console.error('Create inventory response error:', err.response.data);
+    }
     throw err;
   }
 };
