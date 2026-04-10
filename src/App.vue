@@ -170,12 +170,6 @@ onMounted(async () => {
           <span v-if="sidebarAbierto">Inicio / Dashboard</span>
         </button>
 
-        <button @click="irANuevoInventario" 
-          :class="['w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all', vistaActual === 'nuevo-inventario' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20' : 'hover:bg-slate-800']">
-          <span class="text-lg">➕</span>
-          <span v-if="sidebarAbierto">Nuevo Inventario</span>
-        </button>
-
         <div class="pt-4 pb-2">
           <button @click="toggleMenuReportes" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800">
             <div class="flex items-center gap-3">
@@ -204,11 +198,30 @@ onMounted(async () => {
           <button @click="sidebarAbierto = !sidebarAbierto" class="text-slate-400 hover:text-slate-600">☰</button>
           <h2 class="font-bold text-slate-800 uppercase tracking-tight">
             <template v-if="vistaActual === 'dashboard'">Dashboard de Inventario</template>
+      
             <template v-else-if="vistaActual === 'nuevo-inventario'">Inicializar Proceso</template>
             <template v-else-if="vistaActual === 'subir-archivo'">Cargar Archivo Maestro</template>
             <template v-else-if="vistaActual === 'cargar-sto'">Cargar Archivo STO</template>
             <template v-else-if="vistaActual === 'reportes'">Reporte: {{ opcionesReporte.find(r => r.id === reporteSeleccionadoId)?.nombre }}</template>
           </h2>
+        </div>
+
+        <!-- SELECTOR INTEGRADO EN EL HEADER -->
+        <div v-if="vistaActual === 'dashboard' || vistaActual === 'reportes'" class="relative max-w-xs shrink hidden sm:block">
+          <select 
+            id="inventario-select-header"
+            v-model="inventarioSeleccionado" 
+            @change="handleCambioInventario"
+            class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-600 py-1.5 pl-3 pr-8 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer font-bold text-[11px] uppercase tracking-wider"
+          >
+            <option :value="null" disabled>Seleccione Inventario...</option>
+            <option v-for="inv in listaInventarios" :key="inv.in_n_id" :value="inv">
+              {{ inv.inventario }} ({{ inv.base_datos }})
+            </option>
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+            <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+          </div>
         </div>
 
         <div v-if="vistaActual === 'reportes'" class="flex gap-2">
@@ -264,12 +277,6 @@ onMounted(async () => {
                 <span class="text-[12px] font-bold text-blue-600 uppercase">Abrir</span>
               </div>
             </button>
-
-
-
-
-
-
             <button type="button" @click="irACargarSto" class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
               <div class="flex items-center justify-between gap-3">
                 <div>
@@ -282,30 +289,7 @@ onMounted(async () => {
             </button>
           </div>
 
-          <!-- Selector de Inventario Activo -->
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-            <div class="flex flex-wrap items-center gap-3">
-              <label for="inventario-select" class="text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">
-                📦 Inventario Activo
-              </label>
-              <div class="relative flex-1 min-w-[220px]">
-                <select 
-                  id="inventario-select"
-                  v-model="inventarioSeleccionado" 
-                  @change="handleCambioInventario"
-                  class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-1 px-2 pr-5 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer font-semibold text-sm"
-                >
-                  <option :value="null" disabled>Seleccione un Inventario...</option>
-                  <option v-for="inv in listaInventarios" :key="inv.in_n_id" :value="inv">
-                    {{ inv.inventario }} ({{ inv.base_datos }})
-                  </option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                  <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
-                </div>
-              </div>
-            </div>
-          </div>
+
 
           <!-- Tabla de Datos Colectados -->
           <div class="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-200">
