@@ -3,6 +3,7 @@ import axios from 'axios'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import logoDinamic from '../../logodinamicbase64.txt?raw'
 
 export function useInventario() {
   // --- 1. ESTADOS CORE ---
@@ -30,9 +31,14 @@ export function useInventario() {
   // --- UI States ---
   const menuReportesAbierto = ref(false)
   const opcionesReporte = ref([
-    { id: 'inventario_general', nombre: 'Inventario General', icon: '📊' },
-    { id: 'departamentos', nombre: 'Por Departamentos', icon: '🏢' },
-    // Agrega más opciones según necesites
+    { id: 'variacion', nombre: 'Variación Detallada', icon: '📈' },
+    { id: 'detallado', nombre: 'Variación por Grupo', icon: '🧾' },
+    { id: 'depositosalon', nombre: 'Depósito y Salón', icon: '🏬' },
+    { id: 'solodeposito', nombre: 'Solo Depósito', icon: '🏭' },
+    { id: 'solosalon', nombre: 'Solo Salón', icon: '🏪' },
+    { id: 'noimplantado', nombre: 'No Implantados', icon: '🚫' },
+    { id: 'inactivas', nombre: 'Referencias Inactivas', icon: '⛔' },
+    { id: 'sinprecio', nombre: 'Sin Precio', icon: '💲' }
   ])
   const reporteSeleccionadoId = ref('')
 
@@ -67,11 +73,13 @@ export function useInventario() {
   }
 
   const cargarDatosReporte = async (reporteId) => {
+    const db = inventarioSeleccionado.value?.in_d_dbname
+    if (!db) return
     cargando.value = true
     error.value = null
     datosInventario.value = []
     try {
-      const res = await axios.get(`http://localhost:8000/api/reporte/${reporteId}`)
+      const res = await axios.get(`http://localhost:8000/api/reporte/${reporteId}?db=${db}`)
       datosInventario.value = Array.isArray(res.data) ? res.data : []
     } catch (err) {
       error.value = "Error al cargar reporte: " + err.message
@@ -190,10 +198,19 @@ const cargarDatosDashboard = async () => {
 };
 
   // --- 5. UTILIDADES ---
+  const esCampoTexto = (columna) => {
+    if (!columna) return false
+    const nombre = String(columna).toLowerCase()
+    const tokensTexto = [
+      'ean', 'codigo', 'barra', 'marbete', 'id', 'id_device', 'tiporeporte', 'grupo', 'sucursalid',
+      'inv_id', 'archivo', 'nombre', 'base_datos', 'cliente', 'inventario', 'fecha_alta', 'supervisor', 'operador', 'sucursal'
+    ]
+    return tokensTexto.some(token => nombre.includes(token))
+  }
+
   const formatearNumero = (valor, columna) => {
     if (valor === null || valor === undefined || valor === '') return { valor: '', clase: '' }
-    const esIdentificador = ['EAN', 'ean', 'codigo', 'barra', 'marbete'].some(n => columna.toLowerCase().includes(n))
-    if (esIdentificador) return { valor: valor, clase: 'text-left' }
+    if (esCampoTexto(columna)) return { valor: String(valor), clase: 'text-left' }
 
     const numero = parseFloat(valor)
     if (isNaN(numero)) return { valor: valor, clase: 'text-left' }
@@ -220,15 +237,23 @@ const cargarDatosDashboard = async () => {
       });
     }
 
-  const exportarPDF = (tituloReporte) => {
+  const exportarPDF = (nombreReporte, tituloReporte) => {
     if (datosFiltrados.value.length === 0) return
     try {
       const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' })
+      if (logoDinamic) {
+        const base64Image = logoDinamic.trim().startsWith('data:')
+          ? logoDinamic.trim()
+          : `data:image/jpeg;base64,${logoDinamic.trim()}`
+        doc.addImage(base64Image, 'JPEG', 12, 10, 25, 18)
+      }
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const margin = 15
+      const title = `Control de Inventarios - ${tituloReporte}`
       doc.setFontSize(16)
-      doc.text("Dinamic Systems - Control de Inventarios", 15, 15)
+      doc.text(title, pageWidth / 2, 18, { align: 'center' })
       doc.setFontSize(10)
-      doc.text(`Reporte: ${tituloReporte}`, 15, 22)
-      doc.text(`Fecha: ${new Date().toLocaleString()}`, 230, 22)
+      doc.text(`${new Date().toLocaleString()}`, pageWidth - margin, 18, { align: 'right' })
 
       const columnas = cabecerasVisibles.value
       const filas = datosFiltrados.value.map(item => columnas.map(col => item[col] || ''))
@@ -241,7 +266,7 @@ const cargarDatosDashboard = async () => {
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fillColor: [30, 41, 59] }
       })
-      doc.save(`${tituloReporte}_${Date.now()}.pdf`)
+      doc.save(`${nombreReporte}_${Date.now()}.pdf`)
     } catch (err) {
       console.error("Error al generar PDF:", err)
     }

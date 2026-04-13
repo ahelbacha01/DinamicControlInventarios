@@ -62,9 +62,9 @@ const procesarArchivo = async () => {
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-sm border p-8">
-    <div class="mb-6">
-      <h3 class="text-xl font-bold text-slate-800">
+  <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border p-6">
+    <div class="mb-4">
+      <h3 class="text-lg font-bold text-slate-800">
         <!-- Cambiamos el título según el tipo de archivo -->
         Cargar Archivo {{ props.tipoArchivo === 'sto' ? 'STO' : 'Maestro' }}
       </h3>
@@ -73,27 +73,27 @@ const procesarArchivo = async () => {
       </p>
     </div>
 
-    <div class="space-y-5">
+    <div class="space-y-4">
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
           Archivo {{ props.tipoArchivo }} (.out)
         </label>
         <input
           type="file"
           accept=".out"
           @change="seleccionarArchivo"
-          class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         >
         <p class="text-xs text-slate-400 mt-1">
           Selecciona el archivo .out que contiene la lista de productos
         </p>
       </div>
 
-      <div class="flex gap-3 pt-4">
+      <div class="flex gap-2 pt-3">
         <button
           type="button"
           @click="$emit('cancelar')"
-          class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all"
+          class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl hover:bg-slate-200 transition-all"
         >
           Omitir por ahora
         </button>
@@ -101,7 +101,7 @@ const procesarArchivo = async () => {
           type="button"
           @click="procesarArchivo"
           :disabled="!archivoSeleccionado || cargandoSubida"
-          class="flex-1 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 shadow-lg shadow-green-200 transition-all disabled:opacity-50"
+          class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 shadow-lg shadow-green-200 transition-all disabled:opacity-50"
         >
           {{ cargandoSubida ? 'Procesando...' : 'Procesar Archivo' }}
         </button>

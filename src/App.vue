@@ -4,6 +4,7 @@ import { useInventario } from './composables/useInventario'
 import TablaDashboard from './components/TablaDashboard.vue'
 import FormularioNuevoInventario from './components/FormularioNuevoInventario.vue'
 import FormularioArchivoMaestro from './components/FormularioArchivoMaestro.vue'
+import Reportes from './components/Reportes.vue'
 
 const { 
   cargarDepartamentos, 
@@ -31,6 +32,8 @@ const {
   exportarPDF,
   toggleMenuReportes,
   menuReportesAbierto,
+  cargando,
+  error,
   crearInventario 
 } = useInventario()
 
@@ -141,10 +144,17 @@ const handleOmitirArchivo = async () => {
   await irADashboard()
 }
 
+const handleFiltroReporte = ({ field, value }) => {
+  filtros.value[field] = value
+}
+
+const handleBusquedaReporte = (nuevoTexto) => {
+  busqueda.value = nuevoTexto
+}
+
 onMounted(async () => {
   await cargarDepartamentos()
   await cargarListaInventarios()
-  
   if (listaInventarios.value.length > 0) {
     inventarioSeleccionado.value = listaInventarios.value[0]
     await irADashboard()
@@ -162,7 +172,7 @@ onMounted(async () => {
         <span v-if="sidebarAbierto">SISTEMA INV</span>
         <span v-else>SI</span>
       </div>
-      
+
       <nav class="p-3 space-y-2 flex-1">
         <button @click="irADashboard" 
           :class="['w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all', vistaActual === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'hover:bg-slate-800']">
@@ -224,26 +234,18 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="vistaActual === 'reportes'" class="flex gap-2">
-          <button @click="exportarExcel(reporteSeleccionadoId)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Excel</button>
-          <button @click="exportarPDF(reporteSeleccionadoId)" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">PDF</button>
-        </div>
       </header>
 
       <!-- VIEWPORT -->
-      <div class="flex-1 overflow-auto p-8">
+      <div class="flex-1 overflow-auto p-4 md:p-6">
         
         <!-- SECCIÓN: DASHBOARD -->
-        <section v-if="vistaActual === 'dashboard'" class="space-y-8 max-w-7xl mx-auto">
+        <section v-if="vistaActual === 'dashboard'" class="space-y-6 max-w-7xl mx-auto">
           <!-- Tarjetas de Resumen Superior -->
-          <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-500">
               <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Supervisor</p>
               <p class="text-xs font-bold text-slate-800 truncate">{{ resumenInventario?.supervisor || 'Sin asignar' }}</p>
-            </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-yellow-500">
-              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Operador</p>
-              <p class="text-xs font-bold text-slate-800 truncate">{{ resumenInventario?.operador || 'Sin asignar' }}</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-indigo-500">
               <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Auditores</p>
@@ -264,27 +266,27 @@ onMounted(async () => {
 
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
 
 
-            <button type="button" @click="irANuevoInventario" class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
-              <div class="flex items-center justify-between gap-3">
+            <button type="button" @click="irANuevoInventario" class="text-left bg-slate-50 p-3 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
+              <div class="flex items-center justify-between gap-2">
                 <div>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Último Archivo STO</p>
-                  <p class="text-sm font-semibold text-slate-800 truncate">{{ ultimoArchivoMaestro.nombre || 'Sin archivo Maestro cargado' }}</p>
-                  <p class="text-xs text-slate-500 mt-1">Registros procesados: {{ ultimoArchivoMaestro.registros }}</p>
+                  <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Último Archivo Maestro</p>
+                  <p class="text-xs font-semibold text-slate-800 truncate">{{ ultimoArchivoMaestro.nombre || 'Sin archivo Maestro cargado' }}</p>
+                  <p class="text-[10px] text-slate-500 mt-0.5">Registros: {{ ultimoArchivoMaestro.registros }}</p>
                 </div>
-                <span class="text-[12px] font-bold text-blue-600 uppercase">Abrir</span>
+                <span class="text-[11px] font-bold text-blue-600 uppercase">Abrir</span>
               </div>
             </button>
-            <button type="button" @click="irACargarSto" class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
-              <div class="flex items-center justify-between gap-3">
+            <button type="button" @click="irACargarSto" class="text-left bg-slate-50 p-3 rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors">
+              <div class="flex items-center justify-between gap-2">
                 <div>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Último Archivo STO</p>
-                  <p class="text-sm font-semibold text-slate-800 truncate">{{ ultimoArchivoSto.nombre || 'Sin archivo STO cargado' }}</p>
-                  <p class="text-xs text-slate-500 mt-1">Registros procesados: {{ ultimoArchivoSto.registros }}</p>
+                  <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Último Archivo STO</p>
+                  <p class="text-xs font-semibold text-slate-800 truncate">{{ ultimoArchivoSto.nombre || 'Sin archivo STO cargado' }}</p>
+                  <p class="text-[10px] text-slate-500 mt-0.5">Registros: {{ ultimoArchivoSto.registros }}</p>
                 </div>
-                <span class="text-[12px] font-bold text-blue-600 uppercase">Abrir</span>
+                <span class="text-[11px] font-bold text-blue-600 uppercase">Abrir</span>
               </div>
             </button>
           </div>
@@ -293,15 +295,12 @@ onMounted(async () => {
 
           <!-- Tabla de Datos Colectados -->
           <div class="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-200">
-             <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-700">Avance de Recolección en Tiempo Real</h3>
-             </div>
              <TablaDashboard :datos="datosColectado" />
           </div>
         </section>
 
         <!-- SECCIÓN: NUEVO INVENTARIO -->
-        <section v-if="vistaActual === 'nuevo-inventario'" class="max-w-2xl mx-auto">
+        <section v-if="vistaActual === 'nuevo-inventario'" class="max-w-4xl mx-auto">
           <FormularioNuevoInventario 
             :cargando="cargandoCreacion"
             @guardado="handleGuardarNuevoInventario" 
@@ -311,7 +310,7 @@ onMounted(async () => {
         </section>
 
         <!-- SECCIÓN: SUBIR ARCHIVO -->
-        <section v-if="vistaActual === 'subir-archivo'" class="max-w-3xl mx-auto">
+        <section v-if="vistaActual === 'subir-archivo'" class="max-w-md mx-auto">
           <FormularioArchivoMaestro
             :cargando="false"
             :base-datos="inventarioCreado?.base_datos || inventarioSeleccionado?.in_d_dbname"
@@ -323,7 +322,7 @@ onMounted(async () => {
         </section>
 
         <!-- SECCIÓN: CARGAR STO -->
-        <section v-if="vistaActual === 'cargar-sto'" class="max-w-3xl mx-auto">
+        <section v-if="vistaActual === 'cargar-sto'" class="max-w-md mx-auto">
           <FormularioArchivoMaestro
             :cargando="false"
             :base-datos="inventarioSeleccionado?.in_d_dbname"
@@ -335,39 +334,24 @@ onMounted(async () => {
         </section>
 
         <!-- SECCIÓN: REPORTES -->
-        <section v-if="vistaActual === 'reportes'" class="space-y-6">
-          <div class="bg-white p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-4 items-end">
-            <div class="flex-1 space-y-1">
-              <label class="text-[10px] font-bold text-slate-400 uppercase px-1">Filtrar por Departamento</label>
-              <select v-model="filtros.departamento" class="w-full text-sm border-slate-200 rounded-xl focus:ring-blue-500">
-                <option value="">Todos los Departamentos</option>
-                <option v-for="d in listaDepartamentos" :key="d.codigo" :value="d.codigo">{{ d.descripcion }}</option>
-              </select>
-            </div>
-            <div class="flex-[2] space-y-1">
-              <label class="text-[10px] font-bold text-slate-400 uppercase px-1">Búsqueda rápida</label>
-              <input v-model="busqueda" type="text" placeholder="Código, descripción o barra..." class="w-full text-sm border-slate-200 rounded-xl focus:ring-blue-500">
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-[12px] text-left">
-                <thead class="bg-slate-50 border-b">
-                  <tr>
-                    <th v-for="col in cabecerasVisibles" :key="col" class="px-4 py-4 font-bold text-slate-500 uppercase tracking-wider">{{ col }}</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="(fila, i) in datosFiltradosConColumnasVisibles" :key="i" class="hover:bg-blue-50/30 transition-colors">
-                    <td v-for="col in cabecerasVisibles" :key="col" :class="formatearNumero(fila[col], col).clase" class="px-4 py-3 whitespace-nowrap">
-                      {{ formatearNumero(fila[col], col).valor }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <section v-if="vistaActual === 'reportes'" class="space-y-4">
+          <Reportes
+            :opciones-reporte="opcionesReporte"
+            :reporte-seleccionado-id="reporteSeleccionadoId"
+            :reporte-seleccionado-titulo="opcionesReporte.find(r => r.id === reporteSeleccionadoId)?.nombre || ''"
+            :cabeceras-visibles="cabecerasVisibles"
+            :datos-filtrados-con-columnas-visibles="datosFiltradosConColumnasVisibles"
+            :lista-departamentos="listaDepartamentos"
+            :filtros="filtros"
+            :busqueda="busqueda"
+            :cargando="cargando"
+            :error="error"
+            :formatear-numero="formatearNumero"
+            @cambioFiltro="handleFiltroReporte"
+            @cambioBusqueda="handleBusquedaReporte"
+            @exportarExcel="exportarExcel"
+            @exportarPDF="exportarPDF"
+          />
         </section>
 
       </div>

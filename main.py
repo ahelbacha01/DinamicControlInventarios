@@ -1,11 +1,9 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import pyodbc
+import pyodbc, re
 from typing import List, Dict, Any, Optional
-
 app = FastAPI()
-
 # Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
@@ -14,6 +12,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+def validar_nombre_db(nombre: str) -> bool:
+    """Valida que el nombre de base de datos sea seguro"""
+    return bool(re.match(r'^[a-zA-Z0-9_]+$', nombre))
 
 # Configuración de conexión
 def get_db_connection():
@@ -30,42 +31,89 @@ def get_db_connection():
         return None
 
 REPORTES_CONFIG = {
-    "variacion": {"sp": "sp_DS_rep_variaciones_Detallado_cencosud", "params": ('0','999999999', 'inv_946',)},
-    "detallado": {"sp": "sp_DS_rep_variaciones_grupo_new", "params": ('Final Numero',)},
-    "depositosalon": {"sp": "sp_ListarColectadoPorTipo", "params": ('*',)},
-    "solodeposito": {"sp": "sp_ListarColectadoPorTipo", "params": ('D',)},
-    "solosalon": {"sp": "sp_ListarColectadoPorTipo", "params": ('S',)},
-    "noimplantado": {"sp": "sp_DS_rep_no_implantados", "params": None},    
-    "inactivas": {"sp": "sp_DS_rep_Referencias_inactivas", "params": None},    
-    "sinprecio": {"sp": "sp_DS_rep_SinPrecio", "params": None}
+    "variacion": {
+        "sp": "sp_DS_rep_variaciones_Detallado_cencosud", 
+        "params": ('0','999999999',),
+        "usa_base_datos": True
+    },
+    "detallado": {
+        "sp": "sp_DS_rep_variaciones_grupo_new", 
+        "params": ('Final Numero',),
+        "usa_base_datos": False
+    },
+    "depositosalon": {
+        "sp": "sp_ListarColectadoPorTipo", 
+        "params": ('*',),
+        "usa_base_datos": False
+    },
+    "solodeposito": {
+        "sp": "sp_ListarColectadoPorTipo", 
+        "params": ('D',),
+        "usa_base_datos": False
+    },
+    "solosalon": {
+        "sp": "sp_ListarColectadoPorTipo", 
+        "params": ('S',),
+        "usa_base_datos": False
+    },
+    "noimplantado": {
+        "sp": "sp_DS_rep_no_implantados", 
+        "params": None,
+        "usa_base_datos": False
+    },    
+    "inactivas": {
+        "sp": "sp_DS_rep_Referencias_inactivas", 
+        "params": None,
+        "usa_base_datos": False
+    },    
+    "sinprecio": {
+        "sp": "sp_DS_rep_SinPrecio", 
+        "params": None,
+        "usa_base_datos": False
+    }
 }
 
 @app.get("/api/reporte/{id_reporte}")
-def obtener_reporte(id_reporte: str):
+def obtener_reporte(
+    id_reporte: str, 
+    db: Optional[str] = Query(None, description="Nombre de la base de datos")
+):
     print(f"🔍 Solicitando reporte: {id_reporte}")
     
     config = REPORTES_CONFIG.get(id_reporte)
     if not config:
-        return {"error": f"Reporte '{id_reporte}' no configurado en el servidor"}
-
+        raise HTTPException(status_code=404, detail=f"Reporte '{id_reporte}' no configurado")
+    
+    # ✅ Verificar si requiere base de datos
+    usa_base_datos = config.get("usa_base_datos", False)
+    
+    if usa_base_datos and not db:
+        raise HTTPException(status_code=400, detail="Este reporte requiere el parámetro 'db'")
+    
+    if usa_base_datos and db:
+        # Validar nombre de base de datos
+        if not re.match(r'^[a-zA-Z0-9_]+$', db):
+            raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
     conn = get_db_connection()
     if not conn:
-        return {"error": "No se pudo conectar a SQL Server. Verifica que el servidor esté accesible."}
-
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
     try:
         cursor = conn.cursor()
         sp_name = config["sp"]
-        params = config["params"]
+        params = config["params"] or ()
         
-        print(f"📞 Ejecutando SP: {sp_name}")
-        
-        # Ejecutar SP
-        if params:
-            sql = f"SET NOCOUNT ON; EXEC {sp_name} " + ", ".join(["?" for _ in params])
-            cursor.execute(sql, params)
+        # ✅ Solo agregar base de datos si usa_base_datos es True
+        if usa_base_datos:
+            params_completos = params + (db,)
+            print(f"📞 Ejecutando SP: {sp_name} con params: {params_completos} + db={db}")
         else:
-            sql = f"SET NOCOUNT ON; EXEC {sp_name}"
-            cursor.execute(sql)
+            params_completos = params
+            print(f"📞 Ejecutando SP: {sp_name} con params: {params_completos} (sin db)")
+        
+        sql = f"SET NOCOUNT ON; EXEC {sp_name} " + ", ".join(["?" for _ in params_completos])
+        cursor.execute(sql, params_completos)
 
         # Saltar resultados vacíos
         while cursor.description is None:
@@ -90,7 +138,10 @@ def obtener_reporte(id_reporte: str):
         return {"error": f"Error en base de datos: {str(e)}"}
     finally:
         conn.close()
-
+        
+        
+        
+        
 @app.get("/api/departamentosCencosud")
 def obtener_departamentos():
     print("🔍 Solicitando lista de departamentos")
@@ -111,24 +162,93 @@ def obtener_departamentos():
     finally:
         conn.close()
 
-# --- NUEVAS RUTAS PARA EL DASHBOARD Y CONTROL ---
-@app.get("/api/dashboard/colectado/{db}") # <-- Agrega /{db}
-def obtener_colectado_dashboard(db: str): # <-- Agrega db: str
+@app.get("/api/dashboard/colectado/{db}")
+def obtener_colectado_dashboard(db: str):
     print(f"🔍 Datos de Colectado para DB: {db}")
+    
+    # Validar nombre de base de datos
+    if not re.match(r'^[a-zA-Z0-9_]+$', db):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
     conn = get_db_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="Error de conexión")
     
     try:
         cursor = conn.cursor()
-        # IMPORTANTE: Aquí deberías usar la variable 'db' si el SP la requiere,
-        # o asegurar que la conexión se mueva a esa base de datos.
-        cursor.execute("EXEC dbo.sp_ReporteColectado") 
+        
+        # ✅ SIEMPRE ejecutar en inv_ad donde existe el SP
+        cursor.execute("USE [inv_ad]")
+        
+        # Ejecutar el SP pasando la base de datos como parámetro @base_actual
+        cursor.execute("EXEC dbo.sp_ReporteColectado @base_actual = ?", (db,))
         
         columns = [column[0] for column in cursor.description]
         results = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return results
+        
     except Exception as e:
+        print(f"❌ Error en colectado: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+
+    print(f"🔍 Datos de Colectado para DB: {db}")
+    
+    # Validar nombre de base de datos
+    if not re.match(r'^[a-zA-Z0-9_]+$', db):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # ✅ SIEMPRE ejecutar en inv_ad donde existe el SP
+        # No hacer USE [db] porque el SP no está ahí
+        
+        # Ejecutar el SP pasando la base de datos como parámetro
+        # El SP usará @base_datos para construir queries dinámicos internamente
+        cursor.execute("EXEC dbo.sp_ReporteColectado @base_datos = ?", (db,))
+        
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return results
+        
+    except Exception as e:
+        print(f"❌ Error en colectado: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+    print(f"🔍 Datos de Colectado para DB: {db}")
+    
+    # Validar nombre de base de datos
+    if not re.match(r'^[a-zA-Z0-9_]+$', db):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # ✅ CAMBIAR A LA BASE DE DATOS CORRECTA
+        cursor.execute(f"USE [{db}]")
+        
+        # Ahora ejecutar el SP en el contexto correcto
+        cursor.execute("EXEC dbo.sp_ReporteColectado")
+        
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return results
+        
+    except Exception as e:
+        print(f"❌ Error en colectado: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
@@ -386,10 +506,10 @@ async def crear_nuevo_inventario(data: NuevoInventario):
 
 
 
-
-
 @app.post("/api/inventarios/procesar-archivo-maestro/{db_name}/{inventario_id}")
 async def procesar_archivo_maestro(db_name: str, inventario_id: int, file: UploadFile = File(...)):
+    if not validar_nombre_db(db_name):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
     conn = get_db_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")
@@ -471,6 +591,8 @@ async def procesar_archivo_maestro(db_name: str, inventario_id: int, file: Uploa
 
 @app.post("/api/inventarios/procesar-archivo-sto/{db_name}/{inventario_id}")
 async def procesar_archivo_sto(db_name: str, inventario_id: int, file: UploadFile = File(...)):
+    if not validar_nombre_db(db_name):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
     conn = get_db_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")
@@ -562,18 +684,311 @@ async def procesar_archivo_sto(db_name: str, inventario_id: int, file: UploadFil
     finally:
         if conn: conn.close()
 
+@app.get("/api/inventarios/exportar/{base_datos}")
+def generar_exportacion_in(base_datos: str):
+    """
+    Genera archivo de exportación IN llamando al SP sp_GenerarExportacionIN
+    """
+    print(f"🔍 Generando exportación IN para base de datos: {base_datos}")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")    
+    try:
+        cursor = conn.cursor()        
+        # Ejecutar el stored procedure
+        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
+        cursor.execute(sql, (base_datos,))
+        # Saltar resultados vacíos
+        while cursor.description is None:
+            if not cursor.nextset():
+                break
+        
+        if cursor.description is None:
+            print(f"⚠️ El SP no retornó datos para la base: {base_datos}")
+            return {
+                "status": "warning",
+                "message": "No se encontraron datos para exportar",
+                "base_datos": base_datos,
+                "registros": 0,
+                "data": []
+            }
+        
+        # Convertir a JSON
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        print(f"✅ Exportación generada: {len(results)} registros")
+        
+        # Opcional: También devolver como texto plano para generar archivo .IN
+        # Generar contenido del archivo .IN
+        archivo_contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])        
+        return {
+             "status": "success",
+             "base_datos": base_datos,
+             "registros": len(results),
+             "data": results,
+             "archivo_contenido": archivo_contenido,  # Para descargar como archivo
+             "nombre_archivo": f"{base_datos}_exportacion.IN"
+         }
+        
+    except Exception as e:
+        print(f"❌ Error ejecutando sp_GenerarExportacionIN: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error al generar exportación: {str(e)}"
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/api/inventarios/exportar/{base_datos}/descargar")
+def descargar_exportacion_in(base_datos: str):
+    """
+    Genera y descarga el archivo .IN directamente
+    """
+    from fastapi.responses import Response    
+    print(f"🔍 Generando descarga de exportación IN para: {base_datos}")    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")    
+    try:
+        cursor = conn.cursor()        
+        # Ejecutar el stored procedure
+        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
+        cursor.execute(sql, (base_datos,))        
+        # Saltar resultados vacíos
+        while cursor.description is None:
+            if not cursor.nextset():
+                break
+        
+        if cursor.description is None:
+            raise HTTPException(status_code=404, detail="No se encontraron datos para exportar")        
+        # Obtener resultados
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]        
+        # Generar contenido del archivo
+        contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])
+        
+        # Crear respuesta con el archivo
+        return Response(
+            content=contenido,
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f"attachment; filename={base_datos}_exportacion.IN"
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# Versión POST si prefieres enviar parámetros en el body
+@app.post("/api/inventarios/exportar")
+def generar_exportacion_in_post(data: dict):
+    """
+    Genera exportación IN recibiendo la base de datos en el body
+    """
+    base_datos = data.get('base_datos')
+    if not base_datos:
+        raise HTTPException(status_code=400, detail="Se requiere el parámetro 'base_datos'")
+    
+    return generar_exportacion_in(base_datos)
+
+
+# Endpoint adicional para obtener la sucursal de una base de datos
+@app.get("/api/inventarios/sucursal/{base_datos}")
+def obtener_sucursal_por_base(base_datos: str):
+    """
+    Obtiene el número de sucursal para una base de datos específica
+    """
+    print(f"🔍 Consultando sucursal para base: {base_datos}")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT in_n_sucursal, in_n_id, in_d_dbname, cliente
+            FROM inv_datos 
+            WHERE in_d_dbname = ?
+        """
+        cursor.execute(query, (base_datos,))
+        
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Base de datos '{base_datos}' no encontrada")
+        
+        return {
+            "status": "success",
+            "base_datos": base_datos,
+            "sucursal": row[0],
+            "inventario_id": row[1],
+            "nombre_db": row[2],
+            "cliente": row[3]
+        }
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# Endpoint para exportar y guardar el archivo físicamente en el servidor
+@app.post("/api/inventarios/exportar/guardar")
+def guardar_exportacion_in(base_datos: str, ruta_destino: Optional[str] = None):
+    """
+    Genera exportación IN y guarda el archivo en el servidor
+    """
+    import os
+    from datetime import datetime
+    
+    print(f"🔍 Guardando exportación para: {base_datos}")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Ejecutar SP
+        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
+        cursor.execute(sql, (base_datos,))
+        
+        while cursor.description is None:
+            if not cursor.nextset():
+                break
+        
+        if cursor.description is None:
+            raise HTTPException(status_code=404, detail="No hay datos para exportar")
+        
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        # Generar contenido
+        contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])
+        
+        # Determinar ruta de destino
+        if not ruta_destino:
+            # Crear directorio si no existe
+            output_dir = "exports"
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            ruta_destino = os.path.join(output_dir, f"{base_datos}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.IN")
+        
+        # Guardar archivo
+        with open(ruta_destino, 'w', encoding='utf-8') as f:
+            f.write(contenido)
+        
+        return {
+            "status": "success",
+            "message": "Archivo guardado exitosamente",
+            "ruta_archivo": ruta_destino,
+            "registros": len(results),
+            "tamanio_bytes": len(contenido.encode('utf-8'))
+        }
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 
 
 
 
+# Modelo para la actualización de cantidad
+class ActualizarCantidadRequest(BaseModel):
+    cantidad: float
+    terminal_modi: Optional[str] = "SistemaWeb"
 
-
-
-
-
-
-
+@app.put("/api/colectado/{base_datos}/{id_registro}")
+async def actualizar_cantidad_colectado(
+    base_datos: str,
+    id_registro: int,
+    datos: ActualizarCantidadRequest
+):
+    """
+    Actualiza la cantidad de un registro en la tabla COLECTADO
+    """
+    print(f"✏️ Actualizando registro {id_registro} en base {base_datos}")
+    
+    # Validar nombre de base de datos
+    if not re.match(r'^[a-zA-Z0-9_]+$', base_datos):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Cambiar a la base de datos dinámica
+        cursor.execute(f"USE [{base_datos}]")
+        
+        # Verificar que el registro existe
+        cursor.execute("SELECT ID, BARRA, CANTIDAD FROM COLECTADO WHERE ID = ?", (id_registro,))
+        registro = cursor.fetchone()
+        
+        if not registro:
+            raise HTTPException(status_code=404, detail=f"Registro {id_registro} no encontrado")
+        
+        cantidad_anterior = float(registro[2])
+        
+        # Actualizar el registro
+        sql_update = """
+            UPDATE COLECTADO 
+            SET CANTIDAD = ?,
+                FECHA_MODI = GETDATE(),
+                TERMINAL_MODI = ?
+            WHERE ID = ?
+        """
+        
+        cursor.execute(sql_update, (
+            datos.cantidad,
+            datos.terminal_modi,
+            id_registro
+        ))
+        
+        conn.commit()
+        
+        print(f"✅ Registro {id_registro} actualizado: {cantidad_anterior} → {datos.cantidad}")
+        
+        return {
+            "status": "success",
+            "message": "Cantidad actualizada correctamente",
+            "datos": {
+                "id": id_registro,
+                "cantidad_anterior": cantidad_anterior,
+                "cantidad_nueva": datos.cantidad,
+                "fecha_modificacion": datetime.now().isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error actualizando registro: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al actualizar: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
+            
+            
+            
 
 
 
