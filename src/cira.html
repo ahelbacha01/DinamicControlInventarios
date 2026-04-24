@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Final - Revisión de Estados Contables | Centro Islámico de la República Argentina</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background-color: #e9ecef;
+            padding: 40px 20px;
+            line-height: 1.5;
+            color: #212529;
+        }
+
+        /* Contenedor principal estilo hoja A4 */
+        .report-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            padding: 40px 50px;
+        }
+
+        /* Tipografía */
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e3a5f;
+            border-left: 6px solid #2c7da0;
+            padding-left: 20px;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1e4663;
+            margin-top: 28px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #cbd5e1;
+            padding-bottom: 6px;
+        }
+
+        h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        .subhead {
+            color: #2c6e9e;
+            margin-bottom: 30px;
+            font-size: 16px;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        /* Resumen ejecutivo cards */
+        .kpi-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin: 25px 0 20px;
+        }
+        .kpi-card {
+            background: #f8f9fc;
+            border-radius: 16px;
+            padding: 16px 20px;
+            flex: 1 1 180px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .kpi-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            color: #4a627a;
+        }
+        .kpi-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #0b3b5f;
+            margin: 8px 0 4px;
+        }
+        .kpi-trend {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .positive {
+            color: #1e7e34;
+        }
+        .negative {
+            color: #b22234;
+        }
+        .neutral {
+            color: #e67e22;
+        }
+
+        /* tablas modernas */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 15px;
+        }
+        th {
+            background-color: #eef2f7;
+            text-align: left;
+            padding: 12px 12px;
+            font-weight: 600;
+            border-bottom: 2px solid #cbd5e1;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+        .table-accent {
+            background-color: #fcf8e8;
+        }
+
+        .badge {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .finding-box {
+            background: #fef9e6;
+            border-left: 5px solid #e6a017;
+            padding: 14px 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+
+        .recomendacion {
+            background: #e9f5ef;
+            border-left: 5px solid #2c7a4d;
+            padding: 12px 18px;
+            margin: 12px 0;
+            border-radius: 10px;
+        }
+
+        .footer-note {
+            margin-top: 40px;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #6c757d;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+            .report-container {
+                max-width: 100%;
+                box-shadow: none;
+                padding: 20px 30px;
+            }
+            .kpi-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .finding-box, .recomendacion {
+                break-inside: avoid;
+            }
+            h2, h3 {
+                break-after: avoid;
+            }
+        }
+        hr {
+            margin: 20px 0;
+        }
+        .highlight {
+            font-weight: 700;
+            color: #c4450c;
+        }
+    </style>
+</head>
+<body>
+<div class="report-container">
+    <h1>Informe Final de Revisión de Estados Contables</h1>
+    <div class="subhead">
+        <span><strong>Centro Islámico de la República Argentina</strong> · Asociación Civil</span>
+        <span>Ejercicio finalizado al 31 de diciembre de 2025</span>
+    </div>
+    
+    <!-- Resumen ejecutivo estilo KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Activo Total</div><div class="kpi-value">$4.778 MM</div><div class="kpi-trend negative">▼ 1,6% vs 2024</div></div>
+        <div class="kpi-card"><div class="kpi-label">Patrimonio Neto</div><div class="kpi-value">$4.555 MM</div><div class="kpi-trend negative">▼ 1,7%</div></div>
+        <div class="kpi-card"><div class="kpi-label">Resultado Ejercicio</div><div class="kpi-value">-$80,9 MM</div><div class="kpi-trend positive">▲ mejora vs -$640 MM</div></div>
+        <div class="kpi-card"><div class="kpi-label">Liquidez Corriente</div><div class="kpi-value">6,04</div><div class="kpi-trend positive">✅ Excelente</div></div>
+        <div class="kpi-card"><div class="kpi-label">Endeudamiento</div><div class="kpi-value">4,7%</div><div class="kpi-trend positive">Muy bajo</div></div>
+        <div class="kpi-card"><div class="kpi-label">Flujo de Efectivo</div><div class="kpi-value">+$202 MM</div><div class="kpi-trend positive">Positivo</div></div>
+    </div>
+
+    <p style="margin-top: 5px;"><span class="badge">✅ Solvencia firme</span> <span class="badge badge-warning">⚠️ Déficit recurrente</span> <span class="badge badge-danger">⚠️ Dependencia de ingresos clave</span></p>
+    
+    <!-- 1. resumen ejecutivo visión gerencial -->
+    <h2>1. Resumen Ejecutivo (visión gerencial)</h2>
+    <p>La entidad presenta una <strong>estructura patrimonial sólida</strong> con bajo endeudamiento (pasivo = 4,7% del activo) y liquidez holgada. Sin embargo, los <strong>resultados negativos acumulados</strong> reducen el patrimonio neto en un 1,7% respecto a 2024. El flujo de efectivo mejoró significativamente (+$202,5 MM) principalmente por desinversiones financieras y efectos inflacionarios, pero persiste un déficit operativo moderado de $80,9 millones (mejora frente a 2024).</p>
+    <p><strong>Principales riesgos:</strong> alta dependencia del colegio (≈40% de los ingresos), fuerte caída en certificaciones Halal (-33%) y donaciones (-43%), y aumento de gastos administrativos + del colegio por encima del crecimiento de ingresos.</p>
+    
+    <!-- 2. analisis patrimonial -->
+    <h2>2. Análisis Patrimonial y de Resultados</h2>
+    <h3>2.1 Estado de Situación Patrimonial</h3>
+    <table>
+        <thead><tr><th>Rubro</th><th>2025 (en $)</th><th>2024 (en $)</th><th>Variación</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Activo Corriente</td><td>1.352.990.235</td><td>1.292.077.698</td><td class="positive">+4,7%</td></tr>
+            <tr><td>Activo No Corriente</td><td>3.425.968.573</td><td>3.562.871.203</td><td class="negative">-3,8%</td></tr>
+            <tr><td><strong>Total Activo</strong></td><td><strong>4.778.958.808</strong></td><td><strong>4.854.948.901</strong></td><td class="negative">-1,6%</td></tr>
+            <tr><td>Pasivo Corriente</td><td>223.800.158</td><td>218.848.428</td><td class="positive">+2,3%</td></tr>
+            <tr><td><strong>Patrimonio Neto</strong></td><td><strong>4.555.158.650</strong></td><td><strong>4.636.100.472</strong></td><td class="negative">-1,75%</td></tr>
+        </tbody>
+    </table>
+    <p>✔️ <strong>Conclusión patrimonial:</strong> El activo corriente crece por mayor efectivo (+20% en caja/bancos). El patrimonio neto disminuye como consecuencia del déficit del ejercicio. La solvencia es robusta (endeudamiento mínimo).</p>
+    
+    <h3>2.2 Estado de Recursos y Gastos</h3>
+    <table>
+        <thead><tr><th>Concepto</th><th>2025 (en MM $)</th><th>Variación vs 2024</th><th>Observación</th></tr></thead>
+        <tbody>
+            <tr><td>Ingresos por Colegio</td><td>1.441,5</td><td class="positive">+43%</td><td>motor de ingresos</td></tr>
+            <tr><td>Certificaciones Halal</td><td>777,8</td><td class="negative">-33%</td><td>caída significativa</td></tr>
+            <tr><td>Subsidio Estatal colegio</td><td>827,8</td><td class="neutral">estable</td><td>+0,07%</td></tr>
+            <tr><td>Alquileres</td><td>594,0</td><td class="positive">+30%</td><td>buen desempeño</td></tr>
+            <tr><td>Donaciones Recibidas</td><td>49,8</td><td class="negative">-43%</td><td>impacto en actividades religiosas</td></tr>
+            <tr><td><strong>Total Recursos</strong></td><td><strong>3.692,9</strong></td><td class="positive">+4,2%</td><td></td></tr>
+            <tr><td>Total Gastos (incluye amortizaciones)</td><td>3.825,4</td><td class="negative">+9,1%</td><td>presión sobre resultado</td></tr>
+            <tr><td><strong>Resultado Ordinario (déficit)</strong></td><td><strong>-80,9</strong></td><td class="positive">mejora $559 MM</td><td>aún deficitario</td></tr>
+        </tbody>
+    </table>
+    <p>⚠️ La mejora es notable frente al déficit de $640 MM en 2024, pero la entidad aún cierra con resultado negativo. El sector Halal muestra vulnerabilidad, mientras que el colegio y alquileres sostienen los ingresos.</p>
+    
+    <!-- 3. flujo de efectivo -->
+    <h2>3. Flujo de Efectivo y Liquidez</h2>
+    <p>El estado de flujo de efectivo (método directo) refleja:</p>
+    <ul>
+        <li><strong>Flujo operativo neto:</strong> +$65,6 MM (inferior a 2024: +$335,9 MM) debido a mayores pagos operativos.</li>
+        <li><strong>Flujo de inversión:</strong> +$88,9 MM (desinversión en inversiones financieras y menores compras de bienes de uso).</li>
+        <li><strong>Efecto RECPAM + diferencias de cambio:</strong> contribuyeron positivamente en +$48 MM aprox.</li>
+        <li><strong>Efectivo final al cierre:</strong> $1.207 MM vs $1.004 MM en 2024 → <strong class="positive">aumento neto de $202,5 MM</strong>.</li>
+    </ul>
+    <p>✅ La liquidez mejora sustancialmente, pero depende parcialmente de ajustes por inflación y diferencias de cambio (resultados financieros volátiles).</p>
+    
+    <!-- 4. Hallazgos de auditoría (punto crítico) -->
+    <h2>4. Hallazgos de Auditoría (riesgos y debilidades contables)</h2>
+    <div class="finding-box">
+        <strong>🔴 Hallazgo 1 – Provisión por reclamos Halal sin metodología explícita</strong><br>
+        Se constituyó una provisión de $3,6 MM por "reclamos por certificaciones Halal", pero no se detalla el criterio de cálculo, ni el historial de juicios, ni la probabilidad de pérdida. Riesgo de sub o sobreestimación del pasivo.
+    </div>
+    <div class="finding-box">
+        <strong>🔴 Hallazgo 2 – Uso de simplificaciones RT 54 (entidad pequeña) sin suficiente revelación</strong><br>
+        La entidad se clasifica como "Entidad Pequeña (EP)" y aplica dispensas (nota 659 omitida, presentación en una línea de resultados financieros). Esto limita la información para terceros (bancos, donantes). Debe evaluarse si corresponde mantener esta categoría.
+    </div>
+    <div class="finding-box">
+        <strong>🔴 Hallazgo 3 – Falta de índice de inflación aplicado en nota 1.3</strong><br>
+        Se menciona el uso del índice FACPCE pero no se informa el porcentaje de inflación del ejercicio ni el coeficiente de ajuste. Se requiere transparencia sobre la reexpresión de cifras comparativas.
+    </div>
+    <div class="finding-box">
+        <strong>🔴 Hallazgo 4 – Ingresos Halal sin asignación de costos indirectos de estructura</strong><br>
+        El resultado bruto Halal (Nota 5) muestra utilidad de $360 MM, pero no se asignan gastos administrativos generales ni de dirección. La rentabilidad real podría estar sobreestimada.
+    </div>
+    <div class="finding-box">
+        <strong>🔴 Hallazgo 5 – Estados comparativos no reexpresados en moneda homogénea de cierre</strong><br>
+        Si bien se realizó ajuste por inflación, el balance comparativo 2024 se presenta en valores históricos, dificultando la comparabilidad. Norma RT 54 exige columnas reexpresadas.
+    </div>
+    
+    <!-- 5. indicadores clave -->
+    <h2>5. Indicadores Financieros Clave</h2>
+    <table>
+        <thead><tr><th>Indicador</th><th>2025</th><th>2024</th><th>Evaluación</th></tr></thead>
+        <tbody>
+            <tr><td>Liquidez Corriente (AC/PC)</td><td>6,04</td><td>5,92</td><td class="positive">Excelente</td></tr>
+            <tr><td>Endeudamiento Total (Pasivo/Activo)</td><td>4,68%</td><td>4,50%</td><td class="positive">Muy bajo</td></tr>
+            <tr><td>Resultado Neto / Patrimonio (ROE)</td><td>-1,78%</td><td>-13,8%</td><td class="neutral">Mejora, pero negativo</td></tr>
+            <tr><td>Cobertura de Gastos Corrientes (Recursos/Gastos)</td><td>0,96</td><td>1,01</td><td class="negative">Déficit marginal</td></tr>
+            <tr><td>Flujo Neto Efectivo / Pasivo Corriente</td><td>0,90</td><td>-1,26</td><td class="positive">Fuerte generación de efectivo</td></tr>
+        </tbody>
+    </table>
+    
+    <!-- 6. Recomendaciones finales -->
+    <h2>6. Recomendaciones Finales (Estratégicas + Contables)</h2>
+    <div class="recomendacion">
+        <strong>🎯 Estratégicas (gestión institucional)</strong><br>
+        1. <strong>Diversificar fuentes de ingresos</strong>: reducir dependencia del colegio y certificaciones Halal; potenciar alquileres y eventos comunitarios.<br>
+        2. <strong>Reactivar área Halal</strong>: analizar causas de caída del 33% (competencia, costos, mercado internacional) y ajustar estructura.<br>
+        3. <strong>Fortalecer captación de donaciones y subsidios</strong>: rol misional, campañas de Ramadan y transparencia financiera.<br>
+        4. <strong>Control de gastos en colegio y administración</strong>: el incremento del 9% en gastos supera el crecimiento de ingresos (4%), afectando resultados.
+    </div>
+    <div class="recomendacion">
+        <strong>📐 Contables / cumplimiento (mejora en información financiera)</strong><br>
+        5. Exponer en notas la metodología de cálculo de la <strong>provisión por reclamos Halal</strong> (juicios, montos, probabilidad).<br>
+        6. Incorporar el <strong>porcentaje de inflación del ejercicio</strong> (FACPCE) y los coeficientes de ajuste aplicados.<br>
+        7. Reexpresar las cifras comparativas 2024 en moneda homogénea de cierre, conforme RT 54.<br>
+        8. Evaluar si la clasificación como “Entidad Pequeña” sigue siendo adecuada o si conviene adoptar mayores revelaciones.<br>
+        9. Considerar una <strong>auditoría externa voluntaria</strong> para fortalecer la confianza de donantes y entes reguladores.
+    </div>
+    
+    <!-- 7. conclusion -->
+    <h2>7. Conclusión Final</h2>
+    <p>El Centro Islámico de la República Argentina presenta <strong>estados contables que reflejan una situación patrimonial sólida y mejora en el flujo de efectivo</strong>, con un nivel de endeudamiento insignificante. No obstante, los <strong>déficits operativos recurrentes</strong> erosionan el patrimonio neto y la caída en ingresos Halal y donaciones representa una señal de alerta sobre la sostenibilidad de ciertas actividades misionales. </p>
+    <p>Desde el punto de vista de auditoría, existen debilidades en la revelación de información según RT 54 (falta de índices de inflación, provisiones sin metodología, comparativos no reexpresados). Se recomienda adoptar las mejoras señaladas para aumentar la transparencia y facilitar la toma de decisiones de la comisión directiva y partes interesadas.</p>
+    <p><strong>Opinión profesional:</strong> No se detectan indicios de insolvencia ni riesgos inmediatos de liquidez, pero la administración debe implementar un plan de sostenibilidad que reduzca el déficit recurrente y diversifique los ingresos. Las notas a los estados contables requieren ampliaciones significativas para cumplir plenamente con las normas contables profesionales vigentes.</p>
+    
+    <hr />
+    <div style="font-size: 13px; margin-top: 20px;">
+        <p><strong>Base del análisis:</strong> Estados contables al 31/12/2025, notas, anexos e información complementaria provista. Este informe ha sido elaborado con fines de revisión externa y asesoramiento. El informe del contador certificante se extiende en documento aparte según lo indicado por la entidad.</p>
+        <p>Firmas del órgano de administración según estados originales: <em>Presidente · Secretario General · Tesorero</em></p>
+    </div>
+    <div class="footer-note">
+        Informe final combinado – Análisis patrimonial, financiero y de cumplimiento normativo. Documento preparado para impresión y respaldo institucional.
+    </div>
+</div>
+</body>
+</html>

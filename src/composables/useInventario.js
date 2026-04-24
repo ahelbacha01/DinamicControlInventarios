@@ -8,6 +8,7 @@ import logoDinamic from '../../logodinamicbase64.txt?raw'
 export function useInventario() {
   // --- 1. ESTADOS CORE ---
   const datosInventario = ref([])
+  const datosPie = ref([])
   const datosColectado = ref([])
   const resumenInventario = ref({})
   const listaDepartamentos = ref([])
@@ -38,12 +39,12 @@ export function useInventario() {
     { id: 'solosalon', nombre: 'Solo Salón', icon: '🏪' },
     { id: 'noimplantado', nombre: 'No Implantados', icon: '🚫' },
     { id: 'inactivas', nombre: 'Referencias Inactivas', icon: '⛔' },
-    { id: 'sinprecio', nombre: 'Sin Precio', icon: '💲' }
+    { id: 'sinprecio', nombre: 'Sin Precio', icon: '💲' },
+    { id: 'generaid', nombre: 'Generar ID', icon: '*' }
   ])
   const reporteSeleccionadoId = ref('')
 
-  // --- 3. FUNCIONES DE CARGA (API) ---
-  // Agregamos el parámetro 'db' a la función
+
   const cargarDashboard = async (db) => {
     if (!db) return; // Evita llamadas si db es undefined
     cargando.value = true
@@ -85,6 +86,17 @@ export function useInventario() {
       error.value = "Error al cargar reporte: " + err.message
     } finally {
       cargando.value = false
+    }
+  }
+
+  const cargarPieReporteDetallado = async (db) => {
+    if (!db) return
+    try {
+      const res = await axios.get(`http://localhost:8000/api/reporte/detallado?db=${db}`)
+      datosPie.value = Array.isArray(res.data) ? res.data : []
+    } catch (err) {
+      console.error("Error al cargar datos de torta:", err)
+      datosPie.value = []
     }
   }
 
@@ -188,7 +200,8 @@ const cargarDatosDashboard = async () => {
     const db = inventarioSeleccionado.value.in_d_dbname;
     await Promise.all([
       cargarResumen(db),
-      cargarDashboard(db)
+      cargarDashboard(db),
+      cargarPieReporteDetallado(db)
     ]);
 
     console.log("✅ Inventario vigente actualizado en DB y Dashboard recargado.");
@@ -197,18 +210,17 @@ const cargarDatosDashboard = async () => {
   }
 };
 
-  // --- 5. UTILIDADES ---
-  const esCampoTexto = (columna) => {
-    if (!columna) return false
-    const nombre = String(columna).toLowerCase()
-    const tokensTexto = [
-      'ean', 'codigo', 'barra', 'marbete', 'id', 'id_device', 'tiporeporte', 'grupo', 'sucursalid',
-      'inv_id', 'archivo', 'nombre', 'base_datos', 'cliente', 'inventario', 'fecha_alta', 'supervisor', 'operador', 'sucursal'
-    ]
-    return tokensTexto.some(token => nombre.includes(token))
-  }
+const esCampoTexto = (columna) => {
+  if (!columna) return false;
+  const nombre = String(columna).toLowerCase();
+  const tokensTexto = [
+    'ean', 'codigo', 'barra', 'marbete', 'id', 'id_device', 'tiporeporte', 'grupo', 'sucursalid',
+    'inv_id', 'archivo', 'nombre', 'base_datos', 'cliente', 'inventario', 'fecha_alta', 'supervisor', 'operador', 'sucursal'
+  ];
+  return tokensTexto.some(token => nombre.includes(token));
+};
 
-  const formatearNumero = (valor, columna) => {
+const formatearNumero = (valor, columna) => {
     if (valor === null || valor === undefined || valor === '') return { valor: '', clase: '' }
     if (esCampoTexto(columna)) return { valor: String(valor), clase: 'text-left' }
 
@@ -237,7 +249,7 @@ const cargarDatosDashboard = async () => {
       });
     }
 
-  const exportarPDF = (nombreReporte, tituloReporte) => {
+  const exportarPDF = (nombreReporte, tituloReporte, totalesColumnas = {}) => {
     if (datosFiltrados.value.length === 0) return
     try {
       const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' })
@@ -258,10 +270,22 @@ const cargarDatosDashboard = async () => {
       const columnas = cabecerasVisibles.value
       const filas = datosFiltrados.value.map(item => columnas.map(col => item[col] || ''))
 
+      const totalRow = columnas.map((col, index) => {
+        if (typeof totalesColumnas[col] === 'number') {
+          return formatearNumero(totalesColumnas[col], col).valor
+        }
+        return index === 0 ? 'Totales' : ''
+      })
+
+      const body = filas.slice()
+      if (totalRow.some(cell => cell !== '' && cell !== 'Totales')) {
+        body.push(totalRow)
+      }
+
       autoTable(doc, {
         startY: 28,
         head: [columnas],
-        body: filas,
+        body,
         theme: 'grid',
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fillColor: [30, 41, 59] }
@@ -272,13 +296,38 @@ const cargarDatosDashboard = async () => {
     }
   }
 
+
+  const exportarTodosLosReportes = async (baseDatos) => {
+  cargando.value = true
+  error.value = null
+  try {
+    const res = await axios.post(`http://localhost:8000/api/inventarios/exportar-todos-reportes/${baseDatos}`)
+    
+    const data = res.data
+    const mensaje = `✅ Exportación completada\n\n` +
+      `📁 Carpeta: ${data.carpeta}\n` +
+      `📊 Reportes exportados: ${data.exportados_ok}/${data.total_reportes}\n` +
+      `🏪 Tienda: ${data.tienda}\n\n` +
+      (data.errores > 0 ? `⚠️ Errores: ${data.errores}` : '')
+    
+    alert(mensaje)
+    return data
+  } catch (err) {
+    error.value = err.response?.data?.detail || err.message
+    alert('❌ Error: ' + error.value)
+    throw err
+  } finally {
+    cargando.value = false
+  }
+}
+
   // --- 6. RETURN ---
   return {
-    datosInventario, datosColectado, resumenInventario, cargando, error,
+    datosInventario, datosPie, datosColectado, resumenInventario, cargando, error,
     busqueda, filtros, listaDepartamentos, cabecerasVisibles,crearInventario, 
     datosFiltrados, datosFiltradosConColumnasVisibles, cargarListaInventarios,listaInventarios,inventarioSeleccionado,
-    cargarDashboard, cargarResumen, cargarDepartamentos, cargarDatosReporte, cargarDatosDashboard,
+    cargarDashboard, cargarResumen, cargarDepartamentos, cargarDatosReporte, cargarDatosDashboard, cargarPieReporteDetallado,
     formatearNumero, exportarExcel, exportarPDF, vistaActual, reporteActivoId, formatHora,
-    menuReportesAbierto, opcionesReporte, reporteSeleccionadoId, toggleMenuReportes
+    menuReportesAbierto, opcionesReporte, reporteSeleccionadoId, toggleMenuReportes,exportarTodosLosReportes
   }
 }

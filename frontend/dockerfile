@@ -1,0 +1,59 @@
+# Multi-stage build para optimizar tamaño
+# ETAPA 1: Construir el frontend
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /frontend
+
+# Copiar archivos de frontend
+COPY frontend/package.json ./
+
+# Instalar dependencias
+RUN npm install
+
+
+# Copiar código fuente del frontend
+COPY frontend/ .
+
+# Construir el frontend (genera archivos estáticos en dist/)
+RUN npm run build
+
+# ETAPA 2: Backend con Python
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar dependencias del sistema necesarias para pyodbc y SQL Server
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    unixodbc \
+    unixodbc-dev \
+    odbcinst \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar controlador ODBC para SQL Server
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+    curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y msodbcsql18 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements.txt e instalar dependencias Python
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código del backend
+COPY backend/ .
+
+# Copiar el frontend construido desde la etapa anterior
+COPY --from=frontend-builder /frontend/dist ./static
+
+# Exponer puerto para FastAPI
+EXPOSE 8000
+
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1
+
+# Comando para ejecutar FastAPI con uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

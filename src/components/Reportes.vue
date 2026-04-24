@@ -12,7 +12,8 @@ const props = defineProps({
   busqueda: { type: String, default: '' },
   cargando: { type: Boolean, default: false },
   error: { type: String, default: null },
-  formatearNumero: { type: Function, default: (valor) => ({ valor, clase: '' }) }
+  formatearNumero: { type: Function, default: (valor) => ({ valor, clase: '' }) },
+  columnasNoSumar: { type: Array, default: () => ['Export','obs', 'Sucursal','Codigo Barra', 'Codigo Maestro', 'Departamento','departamento','Ean', 'Marbete','Codigo Interno'] }
 })
 
 const emit = defineEmits(['seleccionarReporte', 'cambioFiltro', 'cambioBusqueda', 'exportarExcel', 'exportarPDF'])
@@ -29,8 +30,41 @@ const handleBusqueda = (event) => {
   emit('cambioBusqueda', event.target.value)
 }
 
-const handleExportExcel = () => emit('exportarExcel', props.reporteSeleccionadoId, props.reporteSeleccionadoTitulo)
-const handleExportPDF = () => emit('exportarPDF', props.reporteSeleccionadoId, props.reporteSeleccionadoTitulo)
+const handleExportExcel = () => emit('exportarExcel', props.reporteSeleccionadoId, props.reporteSeleccionadoTitulo, totalesColumnas.value)
+const handleExportPDF = () => emit('exportarPDF', props.reporteSeleccionadoId, props.reporteSeleccionadoTitulo, totalesColumnas.value)
+
+const totalesColumnas = computed(() => {
+  const totales = {}
+  if (props.datosFiltradosConColumnasVisibles.length === 0) return totales
+
+  props.cabecerasVisibles.forEach(col => {
+    totales[col] = null
+  })
+
+  props.datosFiltradosConColumnasVisibles.forEach(fila => {
+    props.cabecerasVisibles.forEach(col => {
+      if (props.columnasNoSumar.includes(col)) return
+
+      const value = fila[col]
+      if (value === null || value === undefined || String(value).trim() === '') return
+
+      const numericValue = typeof value === 'number'
+        ? value
+        : parseFloat(String(value).replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.-]/g, ''))
+
+      if (!Number.isNaN(numericValue)) {
+        if (totales[col] === null) totales[col] = 0
+        totales[col] += numericValue
+      }
+    })
+  })
+
+  return totales
+})
+
+const tieneTotales = computed(() => {
+  return Object.values(totalesColumnas.value).some(valor => typeof valor === 'number')
+})
 </script>
 
 <template>
@@ -81,6 +115,16 @@ const handleExportPDF = () => emit('exportarPDF', props.reporteSeleccionadoId, p
               </td>
             </tr>
           </tbody>
+          <tfoot v-if="tieneTotales" class="bg-slate-50 border-t">
+            <tr class="font-semibold">
+              <td v-for="(col, index) in cabecerasVisibles" :key="col" :class="(typeof totalesColumnas[col] === 'number' ? formatearNumero(totalesColumnas[col], col).clase : 'text-left') + ' px-4 py-3 whitespace-nowrap'">
+                <span v-if="typeof totalesColumnas[col] === 'number'">
+                  {{ formatearNumero(totalesColumnas[col], col).valor }}
+                </span>
+                <span v-else-if="index === 0">Totales</span>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

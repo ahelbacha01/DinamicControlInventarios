@@ -1,17 +1,44 @@
+import os
+import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pyodbc, re
+from datetime import datetime 
 from typing import List, Dict, Any, Optional
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 app = FastAPI()
+
+# Servir archivos estáticos del frontend
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Ruta raíz sirve index.html
+@app.get("/", include_in_schema=False)
+async def root():
+    return FileResponse("static/index.html")
+
+# Ruta catchall para Vue Router (DEBE IR AL FINAL)
+@app.get("/{full_path:path}", include_in_schema=False)
+async def catch_all(full_path: str):
+    # Las rutas /api/* y /static/* no llegan aquí (ya están manejadas)
+    # Todo lo demás va a index.html para Vue Router
+    return FileResponse("static/index.html")
+
 # Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Ajustar en producción
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
+
+
 def validar_nombre_db(nombre: str) -> bool:
     """Valida que el nombre de base de datos sea seguro"""
     return bool(re.match(r'^[a-zA-Z0-9_]+$', nombre))
@@ -70,6 +97,11 @@ REPORTES_CONFIG = {
         "sp": "sp_DS_rep_SinPrecio", 
         "params": None,
         "usa_base_datos": False
+    },    
+    "generaid": {
+        "sp": "sp_GenerarExportacionIN", 
+        "params": None,
+        "usa_base_datos": True
     }
 }
 
@@ -138,10 +170,6 @@ def obtener_reporte(
         return {"error": f"Error en base de datos: {str(e)}"}
     finally:
         conn.close()
-        
-        
-        
-        
 @app.get("/api/departamentosCencosud")
 def obtener_departamentos():
     print("🔍 Solicitando lista de departamentos")
@@ -192,8 +220,6 @@ def obtener_colectado_dashboard(db: str):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-
-
 
     print(f"🔍 Datos de Colectado para DB: {db}")
     
@@ -684,123 +710,6 @@ async def procesar_archivo_sto(db_name: str, inventario_id: int, file: UploadFil
     finally:
         if conn: conn.close()
 
-@app.get("/api/inventarios/exportar/{base_datos}")
-def generar_exportacion_in(base_datos: str):
-    """
-    Genera archivo de exportación IN llamando al SP sp_GenerarExportacionIN
-    """
-    print(f"🔍 Generando exportación IN para base de datos: {base_datos}")
-    
-    conn = get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")    
-    try:
-        cursor = conn.cursor()        
-        # Ejecutar el stored procedure
-        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
-        cursor.execute(sql, (base_datos,))
-        # Saltar resultados vacíos
-        while cursor.description is None:
-            if not cursor.nextset():
-                break
-        
-        if cursor.description is None:
-            print(f"⚠️ El SP no retornó datos para la base: {base_datos}")
-            return {
-                "status": "warning",
-                "message": "No se encontraron datos para exportar",
-                "base_datos": base_datos,
-                "registros": 0,
-                "data": []
-            }
-        
-        # Convertir a JSON
-        columns = [column[0] for column in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        print(f"✅ Exportación generada: {len(results)} registros")
-        
-        # Opcional: También devolver como texto plano para generar archivo .IN
-        # Generar contenido del archivo .IN
-        archivo_contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])        
-        return {
-             "status": "success",
-             "base_datos": base_datos,
-             "registros": len(results),
-             "data": results,
-             "archivo_contenido": archivo_contenido,  # Para descargar como archivo
-             "nombre_archivo": f"{base_datos}_exportacion.IN"
-         }
-        
-    except Exception as e:
-        print(f"❌ Error ejecutando sp_GenerarExportacionIN: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error al generar exportación: {str(e)}"
-        )
-    finally:
-        conn.close()
-
-
-@app.get("/api/inventarios/exportar/{base_datos}/descargar")
-def descargar_exportacion_in(base_datos: str):
-    """
-    Genera y descarga el archivo .IN directamente
-    """
-    from fastapi.responses import Response    
-    print(f"🔍 Generando descarga de exportación IN para: {base_datos}")    
-    conn = get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")    
-    try:
-        cursor = conn.cursor()        
-        # Ejecutar el stored procedure
-        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
-        cursor.execute(sql, (base_datos,))        
-        # Saltar resultados vacíos
-        while cursor.description is None:
-            if not cursor.nextset():
-                break
-        
-        if cursor.description is None:
-            raise HTTPException(status_code=404, detail="No se encontraron datos para exportar")        
-        # Obtener resultados
-        columns = [column[0] for column in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]        
-        # Generar contenido del archivo
-        contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])
-        
-        # Crear respuesta con el archivo
-        return Response(
-            content=contenido,
-            media_type="text/plain",
-            headers={
-                "Content-Disposition": f"attachment; filename={base_datos}_exportacion.IN"
-            }
-        )
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
-
-
-# Versión POST si prefieres enviar parámetros en el body
-@app.post("/api/inventarios/exportar")
-def generar_exportacion_in_post(data: dict):
-    """
-    Genera exportación IN recibiendo la base de datos en el body
-    """
-    base_datos = data.get('base_datos')
-    if not base_datos:
-        raise HTTPException(status_code=400, detail="Se requiere el parámetro 'base_datos'")
-    
-    return generar_exportacion_in(base_datos)
-
-
 # Endpoint adicional para obtener la sucursal de una base de datos
 @app.get("/api/inventarios/sucursal/{base_datos}")
 def obtener_sucursal_por_base(base_datos: str):
@@ -841,76 +750,10 @@ def obtener_sucursal_por_base(base_datos: str):
     finally:
         conn.close()
 
-
-# Endpoint para exportar y guardar el archivo físicamente en el servidor
-@app.post("/api/inventarios/exportar/guardar")
-def guardar_exportacion_in(base_datos: str, ruta_destino: Optional[str] = None):
-    """
-    Genera exportación IN y guarda el archivo en el servidor
-    """
-    import os
-    from datetime import datetime
-    
-    print(f"🔍 Guardando exportación para: {base_datos}")
-    
-    conn = get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Error de conexión")
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Ejecutar SP
-        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
-        cursor.execute(sql, (base_datos,))
-        
-        while cursor.description is None:
-            if not cursor.nextset():
-                break
-        
-        if cursor.description is None:
-            raise HTTPException(status_code=404, detail="No hay datos para exportar")
-        
-        columns = [column[0] for column in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        # Generar contenido
-        contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])
-        
-        # Determinar ruta de destino
-        if not ruta_destino:
-            # Crear directorio si no existe
-            output_dir = "exports"
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-            ruta_destino = os.path.join(output_dir, f"{base_datos}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.IN")
-        
-        # Guardar archivo
-        with open(ruta_destino, 'w', encoding='utf-8') as f:
-            f.write(contenido)
-        
-        return {
-            "status": "success",
-            "message": "Archivo guardado exitosamente",
-            "ruta_archivo": ruta_destino,
-            "registros": len(results),
-            "tamanio_bytes": len(contenido.encode('utf-8'))
-        }
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
-
-
-
-
-
 # Modelo para la actualización de cantidad
 class ActualizarCantidadRequest(BaseModel):
     cantidad: float
-    terminal_modi: Optional[str] = "SistemaWeb"
+    terminal_modi: Optional[str] = "LOCAL_MODIF"
 
 @app.put("/api/colectado/{base_datos}/{id_registro}")
 async def actualizar_cantidad_colectado(
@@ -990,5 +833,284 @@ async def actualizar_cantidad_colectado(
             
             
 
+class NuevoColectadoRequest(BaseModel):
+    barra: str
+    cantidad: float
+    sector: Optional[str] = "1"
+    seccion: Optional[str] = "1"
+    terminal_alta: Optional[str] = "LOCAL_ALTA"
+
+@app.post("/api/colectado/{base_datos}")
+async def agregar_nuevo_colectado(
+    base_datos: str,
+    datos: NuevoColectadoRequest
+):
+    """
+    Agrega un nuevo registro a la tabla COLECTADO
+    """
+    print(f"➕ Agregando nuevo colectado en base {base_datos}")
+    
+    # Validar nombre de base de datos
+    if not re.match(r'^[a-zA-Z0-9_]+$', base_datos):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Cambiar a la base de datos dinámica
+        cursor.execute(f"USE [{base_datos}]")
+        
+        # Insertar nuevo registro
+        sql_insert = """
+            INSERT INTO COLECTADO 
+            (BARRA, CANTIDAD, FECHA_ALTA, TERMINAL_ALTA, ESTADO, SECTOR, SECCION)
+            VALUES (?, ?, GETDATE(), ?, 'A', ?, ?)
+        """
+        
+        cursor.execute(sql_insert, (
+            datos.barra,
+            datos.cantidad,
+            datos.terminal_alta,
+            datos.sector,
+            datos.seccion
+        ))
+        
+        # Obtener el ID del registro recién insertado
+        cursor.execute("SELECT @@IDENTITY")
+        nuevo_id = cursor.fetchone()[0]
+        
+        conn.commit()
+        
+        print(f"✅ Nuevo colectado agregado con ID: {nuevo_id}")
+        
+        return {
+            "status": "success",
+            "message": "Registro agregado correctamente",
+            "datos": {
+                "id": int(nuevo_id),
+                "barra": datos.barra,
+                "cantidad": datos.cantidad,
+                "fecha_alta": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error agregando colectado: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al agregar: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
 
 
+
+@app.get("/api/inventarios/generar_exportar_in/{base_datos}/descargar")
+def descargar_exportacion_in(base_datos: str):
+    """
+    Genera y descarga el archivo .IN directamente
+    """
+    from fastapi.responses import Response    
+    print(f"🔍 Generando descarga de exportación IN para: {base_datos}")    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión a SQL Server")    
+    try:
+        cursor = conn.cursor()        
+        # Ejecutar el stored procedure
+        sql = f"SET NOCOUNT ON; EXEC dbo.sp_GenerarExportacionIN @base_datos = ?"
+        cursor.execute(sql, (base_datos,))        
+        # Saltar resultados vacíos
+        while cursor.description is None:
+            if not cursor.nextset():
+                break
+        
+        if cursor.description is None:
+            raise HTTPException(status_code=404, detail="No se encontraron datos para exportar")        
+        # Obtener resultados
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]        
+        # Generar contenido del archivo
+        contenido = "\n".join([row.get('Export', '') for row in results if row.get('Export')])
+        
+        # Crear respuesta con el archivo
+        return Response(
+            content=contenido,
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f"attachment; filename={base_datos}_exportacion.IN"
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+
+@app.post("/api/inventarios/exportar-todos-reportes/{base_datos}")
+def exportar_todos_los_reportes(base_datos: str):
+    """
+    Exporta todos los reportes configurados a C:\Reportes\### (### = nro tienda)
+    """
+    print(f"🔍 Exportando TODOS los reportes para base: {base_datos}")
+    
+    # Validar nombre de base de datos
+    if not validar_nombre_db(base_datos):
+        raise HTTPException(status_code=400, detail="Nombre de base de datos inválido")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Error de conexión")
+    
+    try:
+        cursor = conn.cursor()
+        
+        # 1. Obtener número de sucursal/tienda
+        cursor.execute("""
+            SELECT TOP 1 in_n_sucursal, cliente 
+            FROM inv_datos 
+            WHERE in_d_dbname = ?
+        """, (base_datos,))
+        
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"No se encontró inventario para base {base_datos}")
+        
+        nro_tienda = str(row[0]).zfill(4)  
+        cliente = row[1] or "SIN_CLIENTE"
+        
+        # 2. Crear carpeta C:\Reportes\###
+        pathtienda = "Tienda_" + nro_tienda + "_" + datetime.now().strftime("%Y-%m-%d")
+        ruta_base = os.path.join(r"C:\Reportes", pathtienda)
+        os.makedirs(ruta_base, exist_ok=True)
+        
+        print(f"📁 Carpeta destino: {ruta_base}")
+        
+        resultados = []
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 3. Ejecutar cada reporte de REPORTES_CONFIG
+        for reporte_id, config in REPORTES_CONFIG.items():
+            try:
+                sp_name = config["sp"]
+                params = config["params"] or ()
+                usa_base_datos = config.get("usa_base_datos", False)
+                
+                # Armar parámetros
+                if usa_base_datos:
+                    params_completos = params + (base_datos,) if params else (base_datos,)
+                else:
+                    params_completos = params
+                
+                # Ejecutar SP
+                sql = f"SET NOCOUNT ON; EXEC {sp_name} " + ", ".join(["?" for _ in params_completos])
+                cursor.execute(sql, params_completos)
+                
+                # Saltar resultados vacíos
+                while cursor.description is None:
+                    if not cursor.nextset():
+                        break
+                
+                if cursor.description is None:
+                    resultados.append({
+                        "reporte": reporte_id,
+                        "status": "warning",
+                        "mensaje": "Sin datos"
+                    })
+                    continue
+                
+                # Obtener datos
+                columns = [column[0] for column in cursor.description]
+                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                # 4. Guardar según tipo de reporte
+                if reporte_id == "generaid":
+                    # Guardar como .IN (formato especial)
+                    nombre_archivo = f"{nro_tienda}inv1000000099999999.IN"
+                    ruta_archivo = os.path.join(ruta_base, nombre_archivo)
+                    
+                    contenido = "\n".join([
+                        row.get('Export', '') for row in results if row.get('Export')
+                    ])
+                    
+                    with open(ruta_archivo, 'w', encoding='utf-8') as f:
+                        f.write(contenido)
+                        
+                else:
+                    # Guardar como CSV para los demás reportes
+                    nombre_archivo = f"TIENDA_{nro_tienda}_{reporte_id}.csv"
+                    ruta_archivo = os.path.join(ruta_base, nombre_archivo)
+                    
+                    import csv
+                    with open(ruta_archivo, 'w', newline='', encoding='utf-8-sig') as f:
+                        writer = csv.DictWriter(f, fieldnames=columns, delimiter=';')
+                        writer.writeheader()
+                        writer.writerows(results)
+                
+                resultados.append({
+                    "reporte": reporte_id,
+                    "status": "success",
+                    "archivo": nombre_archivo,
+                    "registros": len(results),
+                    "ruta": ruta_archivo
+                })
+                
+                print(f"✅ {reporte_id}: {len(results)} registros → {nombre_archivo}")
+                
+            except Exception as e:
+                print(f"❌ Error en {reporte_id}: {e}")
+                resultados.append({
+                    "reporte": reporte_id,
+                    "status": "error",
+                    "mensaje": str(e)
+                })
+        
+        # Contar éxitos y errores
+        exitosos = [r for r in resultados if r["status"] == "success"]
+        errores = [r for r in resultados if r["status"] == "error"]
+
+        # 1. Crear ZIP de la carpeta
+        
+        zip_path = shutil.make_archive(ruta_base, "zip", ruta_base)
+        status = "success" if len(errores) == 0 else "partial_success" if len(exitosos) > 0 else "error"
+        # 2. Mover el ZIP dentro del directorio
+        destino_zip = os.path.join(ruta_base, os.path.basename(zip_path))
+        shutil.move(zip_path, destino_zip)
+
+        # 3. Eliminar todos los archivos excepto los que terminan en .in y el ZIP
+        for archivo in os.listdir(ruta_base):
+            ruta_archivo = os.path.join(ruta_base, archivo)
+            if os.path.isfile(ruta_archivo):
+                if not archivo.endswith(".IN") and not archivo.endswith(".zip"):
+                    os.remove(ruta_archivo)
+
+        
+        
+        return {
+            "status": "success",
+            "base_datos": base_datos,
+            "tienda": nro_tienda,
+            "cliente": cliente,
+            "carpeta": ruta_base,
+            "total_reportes": len(REPORTES_CONFIG),
+            "exportados_ok": len(exitosos),
+            "errores": len(errores),
+            "detalle": resultados
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error general: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

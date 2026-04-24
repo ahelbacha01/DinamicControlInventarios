@@ -1,5 +1,5 @@
 <template>
-    <div class="p-1 bg-slate-50  border-b flex justify-between items-center">
+    <div class="p-1 bg-slate-50 border-b flex justify-between items-center">
       <h3 class="font-bold text-[12px] text-slate-700">Últimos Movimientos Colectados</h3>
     </div>
 
@@ -12,6 +12,8 @@
             <th class="text-[10px] px-6 py-2">Cant.</th>
             <th class="text-[10px] px-6 py-2">Ubicación</th>
             <th class="text-[10px] px-6 py-2">Terminal</th>
+            <!-- Mostrar columna editar solo si permitirEdicion es true -->
+            <th v-if="permitirEdicion" class="text-[10px] px-6 py-2 text-center">Editar</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
@@ -41,23 +43,39 @@
             
             <td class="px-6 py-4">
               <div class="text-slate-500">{{ item.TERMINAL }}</div>
-              <!-- <div class="text-[9px] text-slate-400">{{ item.FECHA_DE_DESCARGA }}</div> -->
+            </td>
+            
+            <!-- BOTÓN DE EDITAR - Solo se muestra si permitirEdicion es true -->
+            <td v-if="permitirEdicion" class="px-6 py-4 text-center">
+              <button 
+                @click="handleEditar(item)"
+                class="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                title="Editar cantidad"
+              >
+                ✏️
+              </button>
             </td>
           </tr>
           
           <tr v-if="datos.length === 0">
-            <td colspan="5" class="px-6 py-10 text-center text-slate-400">
+            <td :colspan="permitirEdicion ? 6 : 5" class="px-6 py-10 text-center text-slate-400">
               No hay datos recientes para mostrar.
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-  
 </template>
 
 <script setup>
-defineProps({
-  datos: { type: Array, required: true }
+const props = defineProps({
+  datos: { type: Array, required: true },
+  permitirEdicion: { type: Boolean, default: false } // ← NUEVA PROP
 })
+
+const emit = defineEmits(['editar'])
+
+const handleEditar = (item) => {
+  emit('editar', item)
+}
 </script>
